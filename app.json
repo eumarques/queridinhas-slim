@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Queridinhas Slim",
+    "slug": "queridinhas-slim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "queridinhasslim",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#FBF6F1",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.queridinhasslim.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Usamos suas fotos somente para registrar sua evolução."
+      }
+    },
+    "android": {
+      "package": "com.queridinhasslim.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F6E4E1"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#911839"
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}

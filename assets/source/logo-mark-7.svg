@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 55 640 640">
+  <!-- Queridinhas Slim — logo 7 (anel + S duplo + estrela) -->
+  <!-- Anel vinho: grosso à esquerda, afinando à direita -->
+  <path fill="#7C2538" fill-rule="evenodd" d="M58 368 A302 302 0 1 0 662 368 A302 302 0 1 0 58 368 Z M90 370 A282 282 0 1 1 654 370 A282 282 0 1 1 90 370 Z"/>
+  <!-- Arremate rosa do anel (inferior direito) -->
+  <path fill="#D08D8A" d="M653.64 289.32 A304 304 0 0 1 281.32 661.64 A332 332 0 0 0 653.64 289.32 Z"/>
+  <!-- Faixa rosa do S -->
+  <path fill="#D08D8A" d="M330 128 C255 145 182 215 186 295 C190 370 262 410 335 445 C395 474 440 500 438 545 C437 572 426 590 408 604 C455 588 480 555 478 518 C475 462 420 428 360 400 C290 368 236 338 236 282 C236 215 275 158 330 128 Z"/>
+  <!-- Faixa vinho do S -->
+  <path fill="#7C2538" d="M388 133 C318 145 262 195 262 258 C262 322 322 352 395 388 C460 420 505 455 505 505 C505 548 482 585 445 612 C510 590 548 548 548 492 C548 425 490 388 425 355 C365 325 318 298 318 245 C318 195 345 155 388 133 Z"/>
+  <!-- Estrela de quatro pontas -->
+  <path fill="#7C2538" d="M502 168 Q508 225 562 233 Q508 241 502 300 Q496 241 440 233 Q496 225 502 168 Z"/>
+</svg>
