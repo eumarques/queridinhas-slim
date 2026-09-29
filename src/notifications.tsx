@@ -1,9 +1,9 @@
 import * as Notifications from 'expo-notifications';
-import { Bell, CaretLeft, Drop, CheckCircle, Minus, PersonSimpleWalk, Plus } from 'phosphor-react-native';
+import { Bell, CaretLeft, Drop, CheckCircle, Minus, PersonSimpleWalk, Plus, Ruler, Syringe } from 'phosphor-react-native';
 import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { ActionButton, Card, Chip, IconBadge, Notice, Title } from './components';
-import { dateKey, dayProgress, fmtLiters, GLASS_ML, Reminders, useStore } from './store';
+import { dateKey, dayProgress, daysBetween, fmtDate, fmtLiters, GLASS_ML, nextApplicationDate, nextBodyCheckDate, Reminders, useStore } from './store';
 import { createStyles, fonts, radius, spacing, type, useColors } from './theme';
 
 /** Lembretes locais só existem no app instalado (Android/iOS); no navegador não há agendamento. */
@@ -49,7 +49,16 @@ export async function ensurePermission() {
   return (await Notifications.requestPermissionsAsync()).granted;
 }
 
-export type TodayState = { waterMl: number; goalMl: number; walkDone: boolean; checkinDone: boolean };
+export type TodayState = {
+  waterMl: number;
+  goalMl: number;
+  walkDone: boolean;
+  checkinDone: boolean;
+  /** Data prevista da próxima aplicação de TG (YYYY-MM-DD). */
+  nextApplication?: string;
+  /** Data prevista da próxima avaliação de fotos e medidas. */
+  nextBody?: string;
+};
 
 // Operações de agendamento rodam uma de cada vez, para duas sincronizações simultâneas não duplicarem avisos.
 let queue: Promise<unknown> = Promise.resolve();
@@ -109,6 +118,24 @@ async function doSync(r: Reminders, today: TodayState) {
       await schedule(at(offset, r.checkin.time), 'Seu check-in de hoje ✨', 'Três perguntas rápidas para acompanhar sua evolução.');
     }
   }
+
+  const todayKey = dateKey();
+  // Aplicação de TG: no dia previsto; se atrasar, mais um aviso por dia (no máximo 2).
+  if (r.application.enabled && today.nextApplication) {
+    const late = daysBetween(today.nextApplication, todayKey);
+    if (late <= 0) {
+      await schedule(at(-late, r.application.time), 'Dia da sua aplicação 💉', 'Hoje é o dia previsto da sua aplicação. Depois, registre no app.');
+    } else {
+      for (let offset = 0; offset < 2; offset++) {
+        await schedule(at(offset, r.application.time), 'Aplicação pendente 💉', `Sua aplicação estava prevista para ${fmtDate(today.nextApplication)}. Registre quando fizer.`);
+      }
+    }
+  }
+  // Fotos e medidas: um aviso quando completar 15 dias da última avaliação.
+  if (r.body.enabled && today.nextBody) {
+    const wait = Math.max(0, daysBetween(todayKey, today.nextBody));
+    await schedule(at(wait, r.body.time), 'Dia de fotos e medidas 📸', 'Já se passaram 15 dias! Registre suas medidas e fotos para ver sua evolução.');
+  }
 }
 
 function TimeStepper({ label, value, onChange, min = 5 * 60, max = 23 * 60 }: { label: string; value: string; onChange: (v: string) => void; min?: number; max?: number }) {
@@ -132,7 +159,7 @@ function TimeStepper({ label, value, onChange, min = 5 * 60, max = 23 * 60 }: { 
 }
 
 export function RemindersScreen({ close }: { close: () => void }) {
-  const { reminders, saveReminders, getDay, currentWeight, mealsPerDay } = useStore();
+  const { reminders, saveReminders, getDay, currentWeight, mealsPerDay, applications, bodyChecks } = useStore();
   const colors = useColors();
   const s = useStyles();
   const [r, setR] = useState<Reminders>(reminders);
@@ -152,14 +179,21 @@ export function RemindersScreen({ close }: { close: () => void }) {
     saveReminders(r);
     if (!remindersSupported) return setStatus({ text: 'Preferências salvas. Os lembretes funcionam no app instalado no celular.', ok: true });
     try {
-      const anyOn = r.water.enabled || r.walk.enabled || r.checkin.enabled;
+      const anyOn = r.water.enabled || r.walk.enabled || r.checkin.enabled || r.application.enabled || r.body.enabled;
       const granted = anyOn ? await ensurePermission() : true;
       setDenied(!granted);
       if (granted) {
         // agenda já com a permissão concedida (a sincronização automática pode ter rodado antes dela)
         const log = getDay(dateKey());
         const p = dayProgress(log, currentWeight ?? 70, mealsPerDay);
-        await syncReminders(r, { waterMl: p.waterMl, goalMl: p.goalMl, walkDone: log.walk.done, checkinDone: !!log.checkin });
+        await syncReminders(r, {
+          waterMl: p.waterMl,
+          goalMl: p.goalMl,
+          walkDone: log.walk.done,
+          checkinDone: !!log.checkin,
+          nextApplication: nextApplicationDate(applications),
+          nextBody: nextBodyCheckDate(bodyChecks),
+        });
       }
       setStatus(granted ? { text: 'Lembretes atualizados.', ok: true } : { text: 'Permita notificações nas configurações do aparelho para receber os lembretes.', ok: false });
     } catch {
@@ -241,6 +275,42 @@ export function RemindersScreen({ close }: { close: () => void }) {
           <>
             <TimeStepper label="Horário" value={r.checkin.time} onChange={(time) => set('checkin', { time })} />
             <Text style={s.small}>Um lembrete por dia; não chega se o check-in já estiver feito.</Text>
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <View style={s.head}>
+          <IconBadge icon={<Syringe size={18} weight="fill" color={colors.primaryDark} />} />
+          <Text style={s.cardTitle}>Aplicação de TG</Text>
+          <Toggle value={r.application.enabled} onChange={(enabled) => set('application', { enabled })} label="Lembrete de aplicação" />
+        </View>
+        {r.application.enabled && (
+          <>
+            <TimeStepper label="Horário" value={r.application.time} onChange={(time) => set('application', { time })} />
+            <Text style={s.small}>
+              {nextApplicationDate(applications)
+                ? `Avisa no dia previsto (7 dias após a última aplicação): ${fmtDate(nextApplicationDate(applications)!)}. Se atrasar, lembra mais 2 vezes.`
+                : 'Registre sua primeira aplicação para ativar o lembrete semanal.'}
+            </Text>
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <View style={s.head}>
+          <IconBadge icon={<Ruler size={18} weight="fill" color={colors.primaryDark} />} />
+          <Text style={s.cardTitle}>Fotos e medidas</Text>
+          <Toggle value={r.body.enabled} onChange={(enabled) => set('body', { enabled })} label="Lembrete de fotos e medidas" />
+        </View>
+        {r.body.enabled && (
+          <>
+            <TimeStepper label="Horário" value={r.body.time} onChange={(time) => set('body', { time })} />
+            <Text style={s.small}>
+              {nextBodyCheckDate(bodyChecks)
+                ? `Avisa a cada 15 dias. Próxima: ${fmtDate(nextBodyCheckDate(bodyChecks)!)}.`
+                : 'Faça sua primeira avaliação para ativar o lembrete a cada 15 dias.'}
+            </Text>
           </>
         )}
       </Card>

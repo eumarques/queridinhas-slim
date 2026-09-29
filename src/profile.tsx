@@ -1,4 +1,4 @@
-import { Bell, CalendarCheck, CaretRight, ChartBar, Crown, ForkKnife, PencilSimple, Question, ShieldCheck, Sparkle, User } from 'phosphor-react-native';
+import { Bell, CalendarCheck, CaretRight, ChartBar, CloudCheck, Crown, ForkKnife, PencilSimple, Question, Ruler, ShieldCheck, SignOut, Sparkle, Syringe, User } from 'phosphor-react-native';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { ActionButton, Card, Chip, Field, IconBadge, InfoTip, Notice, Title } from './components';
@@ -119,30 +119,39 @@ function ProfileForm({
   );
 }
 
-export function OnboardingScreen({ onSexChange }: { onSexChange: (s: Sex) => void }) {
-  const { saveProfile } = useStore();
+export function OnboardingScreen({ onSexChange, accountEmail }: { onSexChange: (s: Sex) => void; accountEmail?: string }) {
+  const { saveProfile, legacyAvailable, importLegacy, cloud } = useStore();
   const colors = useColors();
   const s = useStyles();
   return (
     <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled">
       <View style={s.welcomeIcon}><Sparkle size={28} weight="fill" color={colors.primary} /></View>
       <Title subtitle="Conte um pouco sobre você para personalizarmos suas metas de água, caminhada e evolução.">Boas-vindas ao Queridinhas Slim</Title>
+      {legacyAvailable && (
+        <Card style={s.premiumCard}>
+          <Text style={s.cardTitle}>Encontramos dados neste aparelho</Text>
+          <Text style={s.body}>Você já usou o app antes de criar sua conta. Quer trazer esses registros (perfil, pesos, diário, aplicações) para a sua conta?</Text>
+          <ActionButton label="Importar meus dados" onPress={importLegacy} />
+        </Card>
+      )}
       <Card>
         <ProfileForm
-          initial={{ name: '', age: '', sex: null, weight: '', height: '', phone: '', email: '', goalWeight: '' }}
+          initial={{ name: '', age: '', sex: null, weight: '', height: '', phone: '', email: accountEmail ?? '', goalWeight: '' }}
           submitLabel="Começar minha jornada"
           requireConsent
           onSexChange={onSexChange}
           onSubmit={saveProfile}
         />
       </Card>
-      <Text style={s.disclaimer}>Seus dados ficam salvos neste aparelho e podem ser editados a qualquer momento no Perfil.</Text>
+      <Text style={s.disclaimer}>{cloud ? 'Seus dados ficam salvos na sua conta' : 'Seus dados ficam salvos neste aparelho'} e podem ser editados a qualquer momento no Perfil.</Text>
     </ScrollView>
   );
 }
 
-export function ProfileScreen({ goPremium, open }: { goPremium: () => void; open: (o: 'food' | 'menu' | 'reminders' | 'weekly' | 'privacy') => void }) {
-  const { profile, currentWeight, initialWeight, saveProfile } = useStore();
+export function ProfileScreen({ goPremium, open }: { goPremium: () => void; open: (o: 'food' | 'menu' | 'reminders' | 'weekly' | 'privacy' | 'applications' | 'body') => void }) {
+  const { profile, currentWeight, initialWeight, saveProfile, cloud, syncStatus, syncNow, signOutAndClear } = useStore();
+  const [signOutMsg, setSignOutMsg] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const colors = useColors();
@@ -163,6 +172,8 @@ export function ProfileScreen({ goPremium, open }: { goPremium: () => void; open
     ['E-mail', profile.email],
   ];
   const menu: { Icon: typeof Bell; label: string; onPress?: () => void }[] = [
+    { Icon: Syringe, label: 'Aplicações (calendário e histórico)', onPress: () => open('applications') },
+    { Icon: Ruler, label: 'Fotos e medidas', onPress: () => open('body') },
     { Icon: ForkKnife, label: 'Preferências alimentares', onPress: () => open('food') },
     { Icon: CalendarCheck, label: 'Cardápio semanal', onPress: () => open('menu') },
     { Icon: Bell, label: 'Notificações e lembretes', onPress: () => open('reminders') },
@@ -177,6 +188,30 @@ export function ProfileScreen({ goPremium, open }: { goPremium: () => void; open
         <View style={{ marginTop: 3 }}><User size={22} weight="bold" color={colors.primaryDark} /></View>
         <Title subtitle="Seus dados, preferências e assinatura.">Meu perfil</Title>
       </View>
+
+      {cloud && (
+        <Card>
+          <View style={s.cardHeadRow}>
+            <IconBadge tone={syncStatus === 'error' ? 'danger' : 'success'} icon={<CloudCheck size={18} weight="fill" color={syncStatus === 'error' ? colors.danger : colors.success} />} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitle}>Conta</Text>
+              <Text style={s.body} numberOfLines={1}>{profile.email}</Text>
+            </View>
+          </View>
+          <Text style={s.body}>
+            {syncStatus === 'synced' ? 'Tudo salvo na nuvem.' : syncStatus === 'syncing' ? 'Salvando na nuvem...' : syncStatus === 'pending' ? 'Alterações aguardando envio.' : 'Sem conexão com o servidor. Suas alterações ficam no aparelho e serão enviadas depois.'}
+          </Text>
+          {syncStatus === 'error' && <ActionButton label="Tentar sincronizar agora" onPress={syncNow} secondary />}
+          {signOutMsg && <Notice tone="danger">{signOutMsg}</Notice>}
+          <ActionButton
+            label="Sair da conta"
+            icon={<SignOut size={16} weight="bold" color={colors.primaryDark} />}
+            secondary
+            loading={leaving}
+            onPress={async () => { setLeaving(true); setSignOutMsg(await signOutAndClear()); setLeaving(false); }}
+          />
+        </Card>
+      )}
 
       {editing ? (
         <Card>

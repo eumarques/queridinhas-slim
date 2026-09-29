@@ -15,7 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.queridinhasslim.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Usamos suas fotos somente para registrar sua evolução."
+        "NSPhotoLibraryUsageDescription": "Usamos suas fotos somente para registrar sua evolução. Elas ficam privadas na sua conta.",
+        "NSCameraUsageDescription": "Usamos a câmera para você tirar as fotos de evolução a cada 15 dias."
       }
     },
     "android": {
@@ -41,7 +42,14 @@
           "color": "#911839"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Usamos suas fotos somente para registrar sua evolução. Elas ficam privadas na sua conta.",
+          "cameraPermission": "Usamos a câmera para você tirar as fotos de evolução a cada 15 dias."
+        }
+      ]
     ]
   }
 }

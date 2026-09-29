@@ -5,7 +5,7 @@ import { ActionButton, Card, IconBadge, Notice, Title } from './components';
 import { useStore } from './store';
 import { createStyles, fonts, radius, spacing, type, useColors } from './theme';
 
-export const PRIVACY_VERSION = '1.0';
+export const PRIVACY_VERSION = '1.1';
 
 // ATENÇÃO: modelo inicial. Antes de publicar, preencha os campos entre colchetes
 // e peça a revisão de um(a) advogado(a) especialista em LGPD.
@@ -17,8 +17,8 @@ const sections: { title: string; text: string }[] = [
   {
     title: 'Quais dados coletamos',
     text:
-      'Dados de cadastro: nome, idade, sexo, altura, telefone e e-mail. ' +
-      'Dados de saúde (considerados sensíveis pela LGPD): peso e suas medições, IMC, consumo de água, refeições, caminhadas, check-ins diários, humor, observações e aplicações registradas. ' +
+      'Dados de conta e cadastro: e-mail e senha (a senha é guardada de forma criptografada pelo provedor de login e nunca fica visível), nome, idade, sexo, altura e telefone. ' +
+      'Dados de saúde (considerados sensíveis pela LGPD): peso e suas medições, IMC, medidas corporais, fotos de evolução, consumo de água, refeições, caminhadas, check-ins diários, humor, observações, aplicações de medicamento (dose, local e efeitos colaterais). ' +
       'Preferências alimentares: alimentos preferidos e a evitar, restrições, intolerâncias e nível de atividade física.',
   },
   {
@@ -30,7 +30,8 @@ const sections: { title: string; text: string }[] = [
   {
     title: 'Onde seus dados ficam',
     text:
-      'Nesta versão, todos os dados ficam apenas neste aparelho e não são enviados para servidores. No celular, telefone e e-mail são guardados no armazenamento criptografado do sistema. ' +
+      'Com conta, seus dados e suas fotos de evolução são guardados no Supabase (provedor de banco de dados e armazenamento em nuvem), com acesso protegido por login: cada pessoa só consegue ver os próprios registros, e as fotos ficam em uma área privada. ' +
+      'Uma cópia fica no aparelho para funcionar sem internet e é removida ao sair da conta. No celular, telefone e e-mail são guardados no armazenamento criptografado do sistema. ' +
       'Ao usar "Compartilhar minha evolução", você escolhe onde publicar o card, que não inclui nome, peso atual nem contatos.',
   },
   {
@@ -41,7 +42,7 @@ const sections: { title: string; text: string }[] = [
   },
   {
     title: 'Por quanto tempo guardamos',
-    text: 'Enquanto você usar o aplicativo. Ao apagar seus dados ou desinstalar o app, as informações armazenadas neste aparelho são removidas.',
+    text: 'Enquanto sua conta existir. Ao usar "Apagar meus dados", a conta, os registros e as fotos são excluídos do servidor e deste aparelho.',
   },
   {
     title: 'Menores de idade',
@@ -111,7 +112,7 @@ export function ConsentRequiredScreen() {
         <ConsentField checked={checked} onChange={(v) => { setChecked(v); setError(''); }} error={error} />
         <ActionButton label="Aceitar e continuar" onPress={() => (checked ? giveConsent(PRIVACY_VERSION) : setError('Marque a caixa para continuar.'))} />
       </Card>
-      <Pressable onPress={() => (confirmDelete ? resetAll() : setConfirmDelete(true))} accessibilityRole="button" style={s.reset}>
+      <Pressable onPress={() => (confirmDelete ? void resetAll() : setConfirmDelete(true))} accessibilityRole="button" style={s.reset}>
         <Text style={s.resetText}>{confirmDelete ? 'Toque de novo para apagar todos os dados' : 'Não aceito — apagar meus dados deste aparelho'}</Text>
       </Pressable>
     </ScrollView>
@@ -119,10 +120,17 @@ export function ConsentRequiredScreen() {
 }
 
 export function PrivacyScreen({ close }: { close: () => void }) {
-  const { profile, resetAll } = useStore();
+  const { profile, resetAll, cloud } = useStore();
   const colors = useColors();
   const s = useStyles();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const remove = async () => {
+    setDeleting(true);
+    setError(await resetAll());
+    setDeleting(false);
+  };
   const consentAt = profile?.consent ? new Date(profile.consent.at) : null;
 
   return (
@@ -139,9 +147,9 @@ export function PrivacyScreen({ close }: { close: () => void }) {
       <Card>
         <View style={s.headRow}><IconBadge icon={<LockKey size={18} weight="fill" color={colors.primaryDark} />} /><Text style={s.cardTitle}>Seus dados</Text></View>
         <Text style={s.body}>
-          Tudo fica salvo apenas neste aparelho.{' '}
+          {cloud ? 'Seus dados ficam na sua conta, protegidos por login, com uma cópia neste aparelho para uso sem internet.' : 'Tudo fica salvo apenas neste aparelho.'}{' '}
           {Platform.OS === 'web'
-            ? 'No navegador, os dados ficam no armazenamento local: evite usar o app em computadores compartilhados.'
+            ? 'No navegador, evite usar o app em computadores compartilhados e saia da conta ao terminar.'
             : 'Telefone e e-mail ficam no armazenamento criptografado do celular.'}
         </Text>
         {consentAt && (
@@ -158,10 +166,15 @@ export function PrivacyScreen({ close }: { close: () => void }) {
 
       <Card style={{ borderColor: colors.danger }}>
         <View style={s.headRow}><IconBadge tone="danger" icon={<Trash size={18} weight="fill" color={colors.danger} />} /><Text style={s.cardTitle}>Apagar meus dados</Text></View>
-        <Text style={s.body}>Remove perfil, registros, preferências e lembretes deste aparelho e revoga seu consentimento. Não é possível desfazer.</Text>
-        {confirmDelete && <Notice tone="danger">Tem certeza? Toque de novo para apagar tudo.</Notice>}
-        <Pressable onPress={() => (confirmDelete ? resetAll() : setConfirmDelete(true))} accessibilityRole="button" style={s.deleteBtn}>
-          <Text style={s.deleteText}>{confirmDelete ? 'Sim, apagar tudo' : 'Apagar meus dados'}</Text>
+        <Text style={s.body}>
+          {cloud
+            ? 'Exclui sua conta, todos os registros e as fotos do servidor e deste aparelho, e revoga seu consentimento. Não é possível desfazer.'
+            : 'Remove perfil, registros, fotos, preferências e lembretes deste aparelho e revoga seu consentimento. Não é possível desfazer.'}
+        </Text>
+        {confirmDelete && !error && <Notice tone="danger">Tem certeza? Toque de novo para apagar tudo.</Notice>}
+        {error && <Notice tone="danger">{error}</Notice>}
+        <Pressable onPress={() => (confirmDelete ? remove() : setConfirmDelete(true))} disabled={deleting} accessibilityRole="button" style={s.deleteBtn}>
+          <Text style={s.deleteText}>{deleting ? 'Apagando...' : confirmDelete ? 'Sim, apagar tudo' : 'Apagar meus dados'}</Text>
         </Pressable>
       </Card>
     </ScrollView>

@@ -32,6 +32,8 @@ import { ActionButton, BarChart, Card, Chip, Field, IconBadge, LineChart, Metric
 import {
   addDays,
   dateKey,
+  daysBetween,
+  nextBodyCheckDate,
   DayLog,
   dayProgress,
   fmtDate,
@@ -50,6 +52,7 @@ import {
   weekday,
   weightOn,
 } from './store';
+import { nextApplicationText, siteLabels } from './applications';
 import { buildWeekMenu, slotsFor } from './menu';
 import { createStyles, fonts, radius, spacing, type, useColors } from './theme';
 
@@ -86,8 +89,8 @@ const weekStart = (k: string) => addDays(k, -((fromKey(k).getDay() + 6) % 7));
 // Início — Feedback diário
 // ---------------------------------------------------------------------------
 
-export function HomeScreen({ goPremium, goDay, goMenu, goWeekly }: { goPremium: () => void; goDay: () => void; goMenu: () => void; goWeekly: () => void }) {
-  const { profile, getDay, weights, currentWeight, initialWeight, applications, mealsPerDay, foodPrefs, hasFoodPrefs, targets } = useStore();
+export function HomeScreen({ goPremium, goDay, goMenu, goWeekly, goApplications, goBody }: { goPremium: () => void; goDay: () => void; goMenu: () => void; goWeekly: () => void; goApplications: () => void; goBody: () => void }) {
+  const { profile, getDay, weights, currentWeight, initialWeight, applications, bodyChecks, mealsPerDay, foodPrefs, hasFoodPrefs, targets } = useStore();
   const colors = useColors();
   const s = useStyles();
   const today = dateKey();
@@ -132,8 +135,9 @@ export function HomeScreen({ goPremium, goDay, goMenu, goWeekly }: { goPremium: 
   const goalPct = goal && initialWeight && initialWeight !== goal ? Math.max(0, Math.min(1, (initialWeight - (currentWeight ?? initialWeight)) / (initialWeight - goal))) : undefined;
   const todayMenu = targets ? buildWeekMenu(foodPrefs, targets)[(fromKey(today).getDay() + 6) % 7] : undefined;
   const lastApp = applications[applications.length - 1];
-  const nextApp = lastApp ? addDays(lastApp.date, 7) : undefined;
-  const daysToApp = nextApp ? Math.round((fromKey(nextApp).getTime() - fromKey(today).getTime()) / 86400000) : undefined;
+  const appStatus = nextApplicationText(applications, today);
+  const nextBody = nextBodyCheckDate(bodyChecks);
+  const bodyDays = nextBody ? daysBetween(today, nextBody) : undefined;
 
   return (
     <Screen>
@@ -230,14 +234,17 @@ export function HomeScreen({ goPremium, goDay, goMenu, goWeekly }: { goPremium: 
 
       <Card>
         <View style={s.cardHeadRow}><IconBadge icon={<Syringe size={18} weight="fill" color={colors.primaryDark} />} /><Text style={s.cardTitle}>Aplicação</Text></View>
-        {lastApp ? (
-          <Text style={s.body}>
-            Última: {fmtDate(lastApp.date)} • {lastApp.dose} mg.{'\n'}
-            {daysToApp! > 0 ? `Próxima em ${daysToApp} dia${daysToApp === 1 ? '' : 's'} (${fmtDate(nextApp!)}).` : daysToApp === 0 ? 'A próxima é hoje.' : `A próxima estava prevista para ${fmtDate(nextApp!)}.`}
-          </Text>
-        ) : (
-          <Text style={s.body}>Nenhuma aplicação registrada. Registre no Meu Dia para acompanhar as próximas.</Text>
-        )}
+        <Text style={[s.body, appStatus.late && { color: colors.warning, fontFamily: fonts.bodyBold }]}>{appStatus.text}</Text>
+        {lastApp && <Text style={s.small}>Última: {fmtDate(lastApp.date)} • {lastApp.dose} mg{lastApp.site ? ` • ${siteLabels[lastApp.site]}` : ''}</Text>}
+        <ActionButton label={lastApp ? 'Calendário e histórico' : 'Registrar aplicação'} onPress={goApplications} secondary />
+      </Card>
+
+      <Card>
+        <View style={s.cardHeadRow}><IconBadge icon={<Camera size={18} weight="fill" color={colors.primaryDark} />} /><Text style={s.cardTitle}>Fotos e medidas</Text></View>
+        <Text style={s.body}>
+          {bodyDays === undefined ? 'Registre fotos e medidas a cada 15 dias para ver sua evolução além da balança.' : bodyDays > 0 ? `Próxima avaliação em ${bodyDays} dia${bodyDays === 1 ? '' : 's'} (${fmtDate(nextBody!)}).` : 'Chegou o dia da sua avaliação de fotos e medidas!'}
+        </Text>
+        <ActionButton label={bodyDays !== undefined && bodyDays > 0 ? 'Ver minhas avaliações' : 'Fazer avaliação'} onPress={goBody} secondary />
       </Card>
 
       <Card style={s.premiumCard}>
@@ -253,7 +260,7 @@ export function HomeScreen({ goPremium, goDay, goMenu, goWeekly }: { goPremium: 
 // Meu Dia — diário unificado (água, alimentação, caminhada, peso, humor, aplicação)
 // ---------------------------------------------------------------------------
 
-export function DayScreen({ goProgress, goMenu }: { goProgress: () => void; goMenu: () => void }) {
+export function DayScreen({ goProgress, goMenu, goApplications }: { goProgress: () => void; goMenu: () => void; goApplications: (date: string) => void }) {
   const today = dateKey();
   const [date, setDate] = useState(today);
   const colors = useColors();
@@ -274,13 +281,13 @@ export function DayScreen({ goProgress, goMenu }: { goProgress: () => void; goMe
         </Pressable>
       </View>
       {/* key: reinicia os campos de texto ao trocar de dia */}
-      <DayForm key={date} date={date} goProgress={goProgress} goMenu={goMenu} />
+      <DayForm key={date} date={date} goProgress={goProgress} goMenu={goMenu} goApplications={goApplications} />
     </Screen>
   );
 }
 
-function DayForm({ date, goProgress, goMenu }: { date: string; goProgress: () => void; goMenu: () => void }) {
-  const { getDay, updateDay, weights, applications, addApplication, mealsPerDay, targets } = useStore();
+function DayForm({ date, goProgress, goMenu, goApplications }: { date: string; goProgress: () => void; goMenu: () => void; goApplications: (date: string) => void }) {
+  const { getDay, updateDay, weights, applications, mealsPerDay, targets } = useStore();
   const colors = useColors();
   const s = useStyles();
   const log = getDay(date);
@@ -291,9 +298,6 @@ function DayForm({ date, goProgress, goMenu }: { date: string; goProgress: () =>
 
   const [protein, setProtein] = useState(log.protein ? String(log.protein) : '');
   const [fiber, setFiber] = useState(log.fiber ? String(log.fiber) : '');
-  const [dose, setDose] = useState(applications[applications.length - 1]?.dose ?? '2,5');
-  const [appNote, setAppNote] = useState('');
-  const [appSaved, setAppSaved] = useState(false);
 
   const numField = (setter: (v: string) => void, key: 'protein' | 'fiber') => (t: string) => {
     const clean = t.replace(/\D/g, '').slice(0, 3);
@@ -410,19 +414,11 @@ function DayForm({ date, goProgress, goMenu }: { date: string; goProgress: () =>
       {/* Aplicação (antigo Diário) */}
       <Card>
         <View style={s.cardHeadRow}><IconBadge icon={<Syringe size={18} weight="fill" color={colors.primaryDark} />} /><Text style={s.cardTitle}>Aplicação</Text></View>
-        {dayApps.map((a) => <Notice key={a.id}>Aplicação de {a.dose} mg registrada neste dia{a.note ? ` • ${a.note}` : ''}.</Notice>)}
-        <Field label="Dose (mg)" value={dose} onChangeText={(t) => setDose(t.replace(/[^\d.,]/g, '').slice(0, 5))} keyboardType="decimal-pad" />
-        <Field label="Observações" value={appNote} onChangeText={setAppNote} placeholder="Ex.: local, náusea, saciedade..." />
-        {appSaved && <Notice>Aplicação registrada em {fmtDate(date)}.</Notice>}
-        <ActionButton label="Registrar aplicação" disabled={!(parseNum(dose) > 0)} onPress={() => { addApplication(date, dose, appNote.trim()); setAppNote(''); setAppSaved(true); }} />
-        {applications.length > 0 && (
-          <>
-            <Text style={s.label}>Histórico</Text>
-            {[...applications].reverse().slice(0, 5).map((a) => (
-              <Text key={a.id} style={s.history}>{fmtDate(a.date)} • {a.dose} mg{a.note ? ` • ${a.note}` : ''}</Text>
-            ))}
-          </>
-        )}
+        {dayApps.map((a) => (
+          <Notice key={a.id}>Aplicação de {a.dose} mg registrada neste dia{a.site ? ` • ${siteLabels[a.site]}` : ''}{a.sideEffects?.length ? ` • ${a.sideEffects.join(', ')}` : ''}</Notice>
+        ))}
+        {!dayApps.length && <Text style={s.body}>{nextApplicationText(applications).text}</Text>}
+        <ActionButton label={dayApps.length ? 'Ver calendário e histórico' : 'Registrar aplicação neste dia'} onPress={() => goApplications(date)} secondary />
       </Card>
 
     </>
@@ -559,7 +555,7 @@ function WeightForm({ defaultDate }: { defaultDate: string }) {
 // Progresso — peso e caminhadas
 // ---------------------------------------------------------------------------
 
-export function ProgressScreen({ goPremium, goWeekly }: { goPremium: () => void; goWeekly: () => void }) {
+export function ProgressScreen({ goWeekly, goBody }: { goWeekly: () => void; goBody: () => void }) {
   const [view, setView] = useState<'peso' | 'caminhada' | 'checkins'>('peso');
   const colors = useColors();
   const s = useStyles();
@@ -575,12 +571,12 @@ export function ProgressScreen({ goPremium, goWeekly }: { goPremium: () => void;
       </View>
       <ActionButton label="Ver resultado semanal e compartilhar" onPress={goWeekly} secondary />
       <View style={{ height: spacing.lg }} />
-      {view === 'peso' ? <WeightProgress goPremium={goPremium} /> : view === 'caminhada' ? <WalkProgress /> : <CheckinHistory />}
+      {view === 'peso' ? <WeightProgress goBody={goBody} /> : view === 'caminhada' ? <WalkProgress /> : <CheckinHistory />}
     </Screen>
   );
 }
 
-function WeightProgress({ goPremium }: { goPremium: () => void }) {
+function WeightProgress({ goBody }: { goBody: () => void }) {
   const { weights, currentWeight, initialWeight, profile, removeWeight } = useStore();
   const [all, setAll] = useState(false);
   const colors = useColors();
@@ -637,7 +633,7 @@ function WeightProgress({ goPremium }: { goPremium: () => void }) {
       <Card>
         <View style={s.cardHeadRow}><IconBadge icon={<Camera size={18} weight="fill" color={colors.primaryDark} />} /><Text style={s.cardTitle}>Fotos e medidas</Text></View>
         <Text style={s.body}>Compare o início com o momento atual e acompanhe cintura, quadril e outras medidas.</Text>
-        <ActionButton label="Desbloquear comparativo" icon={<Crown size={16} weight="fill" color={colors.onPrimary} />} onPress={goPremium} />
+        <ActionButton label="Abrir fotos e medidas" onPress={goBody} />
       </Card>
     </>
   );
@@ -824,9 +820,7 @@ export function PremiumScreen({ close }: { close: () => void }) {
         {[
           'Cardápio semanal personalizado',
           'Lista de compras automática',
-          'Fotos e medidas de evolução',
           'Gráficos e relatórios avançados',
-          'Histórico completo de aplicações',
           'Lembretes personalizados',
           'Conteúdos e exercícios exclusivos',
         ].map((x) => <Bullet key={x}>{x}</Bullet>)}

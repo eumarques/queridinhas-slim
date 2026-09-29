@@ -33,8 +33,7 @@ Antes da publicação, troque `com.queridinhasslim.app` pelos identificadores of
 
 ## O que ainda precisa ser conectado para produção
 
-- Supabase: autenticação, banco e armazenamento de fotos
-- `expo-notifications`: lembretes reais de aplicação
+- Supabase: o código de login, senha, recuperação de senha, sincronização e fotos já está pronto; falta criar o projeto e colocar as chaves (veja [SUPABASE.md](SUPABASE.md))
 - RevenueCat ou compras nativas: assinatura Premium
 - Política de privacidade, termos e exclusão de conta
 - Conteúdo revisado por profissional de saúde
