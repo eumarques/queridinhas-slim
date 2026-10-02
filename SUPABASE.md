@@ -50,7 +50,9 @@ Passos gerais:
 
 1. Crie a conta no serviço e gere uma **API key** ou credenciais SMTP.
 2. **Remetente**: o ideal é um e-mail de um domínio seu (ex.: `nao-responda@seudominio.com.br`), com o domínio verificado no serviço (registros SPF/DKIM) — isso evita que os e-mails caiam no spam. Sem domínio próprio, use o remetente de teste que o serviço fornece (só para testes).
-3. No Supabase, em **SMTP Settings**, preencha host, porta, usuário, senha e o e-mail/nome do remetente.
+3. No Supabase, em **SMTP Settings**, preencha host, porta, usuário, senha e o e-mail/nome do remetente. Atenção aos valores exatos de cada serviço:
+   - **Resend** — host `smtp.resend.com`, porta `465`, **usuário literalmente `resend`** (não é o seu e-mail), senha = a **API key** (`re_...`). Remetente de teste: `onboarding@resend.dev`.
+   - **Brevo** — host `smtp-relay.brevo.com`, porta `587`, usuário = o **e-mail de login do Brevo**, senha = a **SMTP key** gerada em *SMTP & API* (não é a senha da conta).
 4. Em **Authentication → Rate Limits**, ajuste o limite de e-mails por hora conforme o plano.
 
 ## 4. Colocar as chaves no app
